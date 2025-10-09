@@ -1,9 +1,9 @@
 import Workspace from '../schema/workspace.js';
 import crudRepository from './crudRepository.js';
-import ClientError from '../utils/errors/client-error.js'; // Update path as needed
-import { StatusCodes } from 'http-status-codes'; // Ensure it's installed
-import User from '../schema/user.js'; // Assuming you have this schema
-
+import ClientError from '../utils/errors/client-error.js';
+import { StatusCodes } from 'http-status-codes';
+import User from '../schema/user.js';
+import channelRepository from './channelRepository.js'; 
 const workspaceRepository = {
   ...crudRepository(Workspace),
 
@@ -56,7 +56,7 @@ const workspaceRepository = {
     }
 
     const isMemberAlreadyPartOfWorkspace = workspace.members.find(
-      (member) => member.memberId == memberId
+      (member) => member.memberId.toString() === memberId
     );
 
     if (isMemberAlreadyPartOfWorkspace) {
@@ -68,18 +68,48 @@ const workspaceRepository = {
     }
 
     workspace.members.push({ memberId, role });
-
     await workspace.save();
 
     return workspace;
   },
 
-  addChannelToWorkspace: async function () {
-    // To be implemented
+  addChannelToWorkspace: async function (workspaceId, channelName) {
+    const workspace = await Workspace.findById(workspaceId).populate('channels');
+
+    if (!workspace) {
+      throw new ClientError({
+        explanation: 'Invalid data sent from the client',
+        message: 'Workspace not found',
+        statusCode: StatusCodes.NOT_FOUND
+      });
+    }
+
+    const isChannelAlreadyPartOfWorkspace = workspace.channels.find(
+      (channel) => channel.name === channelName
+    );
+
+    if (isChannelAlreadyPartOfWorkspace) {
+      throw new ClientError({
+        explanation: 'Invalid data sent from the client',
+        message: 'Channel already part of workspace',
+        statusCode: StatusCodes.FORBIDDEN
+      });
+    }
+
+    const channel = await channelRepository.create({ name: channelName });
+
+    workspace.channels.push(channel);
+    await workspace.save();
+
+    return workspace;
   },
 
-  fetchAllWorkspaceByMemberId: async function () {
-    // To be implemented
+  fetchAllWorkspaceByMemberId: async function (memberId) {
+    const workspaces = await Workspace.find({
+      'members.memberId': memberId
+    }).populate('members.memberId', 'username email avatar');
+
+    return workspaces;
   }
 };
 
